@@ -1,35 +1,48 @@
 import SwiftUI
 import AppKit
 
-enum MenuBarDisplayMode: String, CaseIterable, Identifiable {
-    case nothing
+enum MenuBarMetric: String, CaseIterable, Identifiable {
+    case watts
     case percent
     case time
-    case watts
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .nothing: return "None"
-        case .percent: return "%"
-        case .time: return "Time"
-        case .watts: return "Watts"
+        case .watts: return "전력"
+        case .percent: return "배터리 잔량"
+        case .time: return "남은 시간"
+        }
+    }
+
+    var example: String {
+        switch self {
+        case .watts: return "26W"
+        case .percent: return "85%"
+        case .time: return "1h30m"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .watts: return "bolt.fill"
+        case .percent: return "battery.100"
+        case .time: return "clock"
         }
     }
 }
 
 /// Flat, modern battery glyph modeled on the iOS status bar battery:
 /// translucent capsule track, solid fill sized to the charge level, and the
-/// reading (percent / time / watts) punched out of the shape as a cutout.
+/// reading (percent / time / watts) drawn in contrasting colors on the filled
+/// and empty portions of the battery.
 ///
 /// The glyph is drawn offscreen into an image before it reaches the menu
-/// bar — the status item pipeline drops blend modes when compositing live
-/// views (which erased the battery shape entirely in 1.1.0), but it shows
-/// pre-rendered images pixel-for-pixel.
+/// bar so the text and fill stay consistent in the AppKit status item.
 struct BatteryGlyph: View {
     let snapshot: BatterySnapshot
-    let mode: MenuBarDisplayMode
+    let metric: MenuBarMetric
     let darkMenuBar: Bool
     let warn: Int
     let critical: Int
@@ -52,12 +65,21 @@ struct BatteryGlyph: View {
                     .frame(width: fillWidth)
 
                 readoutOverlay
+                    .foregroundStyle(filledTextColor)
                     .frame(width: bodyWidth, height: bodyHeight)
-                    .blendMode(.destinationOut)
+                    .mask(alignment: .leading) {
+                        Rectangle().frame(width: fillWidth)
+                    }
+
+                readoutOverlay
+                    .foregroundStyle(baseColor)
+                    .frame(width: bodyWidth, height: bodyHeight)
+                    .mask(alignment: .trailing) {
+                        Rectangle().frame(width: bodyWidth - fillWidth)
+                    }
             }
             .frame(width: bodyWidth, height: bodyHeight)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .compositingGroup()
 
             // the nub
             RoundedRectangle(cornerRadius: 1, style: .continuous)
@@ -70,31 +92,19 @@ struct BatteryGlyph: View {
 
     // MARK: - Pieces
 
-    @ViewBuilder
     private var readoutOverlay: some View {
-        if snapshot.state != .noBattery {
-            HStack(spacing: 1) {
-                if snapshot.state == .charging && mode != .watts {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 7, weight: .bold))
-                }
-                if let readout {
-                    Text(readout)
-                        .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                }
-            }
-        }
+        Text(readout ?? "")
+            .font(.system(size: 9.5, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
     }
 
     private var readout: String? {
-        switch mode {
-        case .nothing:
-            return nil
+        guard snapshot.state != .noBattery else { return nil }
+        switch metric {
         case .percent:
-            return "\(snapshot.percent)"
+            return "\(snapshot.percent)%"
         case .watts:
             let magnitude = abs(snapshot.smoothedWatts)
             if magnitude < 0.05 { return "0W" }
@@ -114,11 +124,11 @@ struct BatteryGlyph: View {
             switch snapshot.state {
             case .charging: minutes = snapshot.timeToFullMinutes
             case .discharging: minutes = snapshot.timeToEmptyMinutes
-            default: minutes = nil
+            case .charged: return "완료"
+            case .pluggedIdle: return "대기"
+            case .noBattery: return nil
             }
-            guard let minutes else {
-                return (snapshot.state == .charging || snapshot.state == .discharging) ? "–" : nil
-            }
+            guard let minutes else { return "–" }
             let hours = minutes / 60
             let mins = minutes % 60
             if hours > 0 { return String(format: "%dh%02dm", hours, mins) }
@@ -136,54 +146,26 @@ struct BatteryGlyph: View {
         PowerAccent.iconFill(for: snapshot, warn: warn, critical: critical, neutral: baseColor)
     }
 
+    private var filledTextColor: Color {
+        // Black exceeds 6:1 contrast on every colored fill, including red.
+        // A neutral fill uses the opposite of the menu bar's foreground color.
+        if snapshot.state == .discharging && snapshot.percent > warn {
+            return darkMenuBar ? .black : .white
+        }
+        return .black
+    }
+
     /// Everything that affects the rendered pixels, cheap to compare —
-    /// MenuBarLabel uses this to skip re-rendering identical frames.
+    /// The status item uses this to skip re-rendering identical frames.
     var cacheKey: String {
-        "\(mode.rawValue)|\(readout ?? "")|\(snapshot.percent)|\(String(describing: snapshot.state))|\(darkMenuBar)|\(warn)|\(critical)"
-    }
-}
-
-struct MenuBarLabel: View {
-    @ObservedObject var monitor: PowerMonitor
-    @AppStorage(DefaultsKey.menuBarDisplayMode) private var displayModeRaw = MenuBarDisplayMode.percent.rawValue
-    @AppStorage(DefaultsKey.warnThreshold) private var warnThreshold = 20
-    @AppStorage(DefaultsKey.criticalThreshold) private var criticalThreshold = 10
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        let glyph = BatteryGlyph(
-            snapshot: monitor.snapshot,
-            mode: MenuBarDisplayMode(rawValue: displayModeRaw) ?? .percent,
-            darkMenuBar: colorScheme == .dark,
-            warn: warnThreshold,
-            critical: criticalThreshold
-        )
-        if let image = renderedImage(for: glyph) {
-            Image(nsImage: image)
-        } else {
-            glyph
-        }
+        "\(metric.rawValue)|\(readout ?? "")|\(snapshot.percent)|\(String(describing: snapshot.state))|\(darkMenuBar)|\(warn)|\(critical)"
     }
 
-    private final class RenderCache {
-        var key = ""
-        var image: NSImage?
-    }
-    private static let cache = RenderCache()
-
-    private func renderedImage(for glyph: BatteryGlyph) -> NSImage? {
-        // Re-render only when the glyph's visible content changed — at idle
-        // (say, percent mode on a steady charge) the 1 Hz tick draws nothing.
-        let key = glyph.cacheKey
-        if key == Self.cache.key, let cached = Self.cache.image {
-            return cached
-        }
-        let renderer = ImageRenderer(content: glyph)
+    func renderedImage() -> NSImage? {
+        let renderer = ImageRenderer(content: self)
         renderer.scale = max(2, NSScreen.main?.backingScaleFactor ?? 2)
         guard let image = renderer.nsImage else { return nil }
         image.isTemplate = false
-        Self.cache.key = key
-        Self.cache.image = image
         return image
     }
 }

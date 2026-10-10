@@ -1,67 +1,48 @@
-# BetterBattery
-
-**A tiny macOS menu bar app that shows — live, every second — how much power is flowing into (or out of) your MacBook's battery.**
-
 <p align="center">
-  <a href="https://github.com/michaelmax98/BetterBattery/releases/latest/download/BetterBattery.dmg">
-    <img src="docs/download-button.svg" width="232" alt="Download for macOS (DMG)">
-  </a>
-  <br>
-  <sub>Direct download · macOS 13+ · free &amp; open source · <a href="https://github.com/michaelmax98/BetterBattery/releases/latest">all releases</a> · <a href="https://buymeacoffee.com/michaelmaxwell">☕ buy me a coffee</a></sub>
+  <img src="docs/app-icon.svg" alt="배터리 전력 앱 아이콘" width="120">
 </p>
 
-[![Latest release](https://img.shields.io/github/v/release/michaelmax98/BetterBattery?label=latest&color=2ea44f)](https://github.com/michaelmax98/BetterBattery/releases/latest)
-[![CI](https://github.com/michaelmax98/BetterBattery/actions/workflows/ci.yml/badge.svg)](https://github.com/michaelmax98/BetterBattery/actions/workflows/ci.yml)
+# 배터리 전력
 
-A clean, flat, iOS-style battery icon sits in your menu bar. Click it for the live panel: charge/discharge wattage, battery percentage ring, time to full or time remaining, charger wattage, battery health, and cycle count.
+Mac 메뉴 막대에서 배터리 충전 전력, 잔량, 남은 시간을 보여주는 한국어 앱입니다. [BetterBattery](https://github.com/michaelmax98/BetterBattery)를 바탕으로 만든 **비공식 수정판**이며, 원본 개발자와 별도로 관리합니다.
 
-## Install
+[최신 버전 다운로드](https://github.com/sabyunrepo/BetterBattery-KR/releases/latest/download/BetterBattery.dmg) · [전체 릴리즈](https://github.com/sabyunrepo/BetterBattery-KR/releases)
 
-1. Click the **Download** button above (it always grabs the newest DMG)
-2. Open it and drag **BetterBattery** into **Applications**
-3. Launch it from Applications — the battery icon appears in your menu bar
+## 주요 기능
 
-> **First launch on a fresh download:** releases aren't notarized with a paid Apple Developer ID (yet), so macOS may block the first open. If double-clicking shows a warning, go to **System Settings → Privacy & Security**, scroll down to the "BetterBattery was blocked" notice, and click **Open Anyway** (on older macOS versions, right-click the app → **Open** works too). This is only needed once.
+- 메뉴 막대 배터리 안에 **전력(W) · 잔량(%) · 남은 시간(예: `1h30m`)**을 표시합니다. 원하는 항목만 선택할 수 있고, 여러 개를 선택하면 2초마다 순서대로 바뀝니다.
+- 배터리 충전·사용 전력과 잔량 변화의 기록을 볼 수 있습니다.
+- 어댑터 출력, 배터리 온도, macOS 기준 최대 용량(배터리 성능), 현재·최대·설계 용량(mAh)을 확인할 수 있습니다. 팬 카드는 기기에서 팬 정보가 감지될 때만 표시됩니다.
+- macOS 13 이상에서 동작하며 메뉴 막대에서만 실행됩니다.
 
-Requires macOS 13 Ventura or later. No special permissions — battery data is read from public IOKit properties.
+## 설치
 
-## Features
+1. [최신 릴리즈](https://github.com/sabyunrepo/BetterBattery-KR/releases/latest)에서 `BetterBattery.dmg`를 내려받습니다.
+2. DMG를 열고 `BetterBattery.app`을 응용 프로그램 폴더로 옮긴 뒤 실행합니다.
 
-- **Live battery wattage** — positive and green while charging (energy flowing into the battery), and the real-time draw while on battery. Read from IOKit's instantaneous amperage × voltage at 1 Hz.
-- **iOS-style battery icon** — modern and flat, with the reading punched into the battery shape. Choose what it shows inside: **nothing**, **percentage** (like `75`), **time remaining** (like `6h35m`; time to full while charging), or **live watts** with a direction arrow — `▴26W` charging into the battery, `▾8.4W` being drawn from it.
-- **State color theme** — green while charging or plugged in, blue on battery, then orange and red as you cross your low-battery thresholds. The panel ring, the wattage number, and the menu bar icon all follow.
-- **Low-battery alerts** — warning and critical percentages set to any value from 1–20%, plus an optional pulsing neon glow around the screen edges (orange, then red) so a dying battery is impossible to miss. When the charger lands mid-glow, an optional green celebration shimmer fades it out. Test buttons preview every effect — press Esc to end a preview.
-- **Time estimates** — time to full / time remaining, same numbers as the system battery menu.
-- **History charts** — battery level or charge/discharge wattage over a selectable **4h / 24h / 7d** window, with history persisted to disk across relaunches, an optional **temperature overlay** (one click on the temp chip), and a long-term **Health trend** view built from daily snapshots.
-- **Charge limit aware** — pairs with macOS Tahoe 26.4's native 80–95% charge limit: one click opens the Battery setting, and the panel shows when charging is being held.
-- **Stats for nerds** — a collapsible grid of live tiles: battery temperature with a gauge, a fan that actually spins at the real RPM, volts × amps, session energy and average draw, adapter wattage, capacity bar (current / full / design mAh), color-coded health and cycles, and lifetime energy — measured since install plus an estimate from your battery's cycle history, translated into how long it could power the average U.S. home.
-- **A calm, glanceable layout** — hero readout and history up top; Settings, Low Battery, and Stats for Nerds tucked into collapsible sections; update controls anchored at the bottom.
-- **In-app updates** — the app checks this repo's Releases page and can download and open the new version for you.
-- Native SwiftUI, light/dark aware, no Dock icon, optional Launch at Login.
+현재 공개 빌드는 **Developer ID 서명과 Apple 공증을 거치지 않은 개발용 빌드**입니다. 다른 Mac에서 다운로드하면 macOS의 보안 경고가 표시되거나 실행이 제한될 수 있습니다. 일반 사용자에게 경고 없이 배포하려면 배포자 인증서로 서명하고 공증해야 합니다. 다운로드 무결성은 릴리즈의 `SHA256SUMS.txt`로 확인할 수 있습니다.
 
-## Updates
+## 설정
 
-BetterBattery checks GitHub for a new release every few hours (and there's a **Check for Updates** button in the panel). When one is available, click **Install Update** — the app downloads the new version, verifies it against the sha256 GitHub publishes for the release, swaps itself in place, and relaunches. One click, no dragging.
+메뉴 막대의 배터리 아이콘을 눌러 **설정 → 메뉴 막대에 표시**에서 전력·잔량·남은 시간을 각각 켜거나 끌 수 있습니다. 한 항목만 선택하면 고정 표시됩니다. 충전하지 않는 동안 남은 시간은 `대기`로 표시될 수 있습니다.
 
-## Build from source
+## 소스에서 빌드
+
+Xcode 또는 Command Line Tools가 설치된 macOS 13 이상이 필요합니다.
 
 ```bash
-git clone https://github.com/michaelmax98/BetterBattery.git
-cd BetterBattery
-swift run -c release      # run it directly
-./build-app.sh            # or build build/BetterBattery.app
+git clone https://github.com/sabyunrepo/BetterBattery-KR.git
+cd BetterBattery-KR
+VERSION=1.0.0 ./build-app.sh
+open build/BetterBattery.app
 ```
 
-Releases are built by [GitHub Actions](.github/workflows/release.yml): pushing a `v*` tag compiles the app on a macOS runner, packages the DMG, and publishes it to the Releases page.
+빌드 스크립트가 SVG 아이콘을 생성해 앱에 포함합니다. 앱 번들에는 원본 MIT 라이선스도 포함됩니다. 이 수정판은 원본의 자동 업데이트 기능을 사용하지 않습니다.
 
-## How it reads power
+## 자동 빌드와 릴리즈
 
-Wattage comes from the `AppleSmartBattery` IORegistry entry (`InstantAmperage` × `Voltage`). Positive means the battery is being charged; negative means it's powering the Mac. Two things that are normal: into-battery watts are lower than your charger's rating (the charger also powers the Mac itself), and ~0 W while plugged in means the battery is full or Optimized Battery Charging is holding it.
+`main`에 코드를 올리면 GitHub Actions가 macOS에서 빌드와 앱 번들을 검사합니다. `v1.0.0` 같은 버전 태그를 올리거나 GitHub Actions의 **Release** 작업에 버전(`1.0.0`)을 입력하면 DMG와 SHA-256 체크섬이 자동으로 릴리즈에 게시됩니다.
 
-## Support
+## 원본과 라이선스
 
-Free and open source. If it earns a spot in your menu bar, you can [buy me a coffee](https://buymeacoffee.com/michaelmaxwell) ☕
-
-## License
-
-[MIT](LICENSE)
+원본: [michaelmax98/BetterBattery](https://github.com/michaelmax98/BetterBattery) — Copyright © 2026 Michael Maxwell. 본 저장소는 원본을 한국어로 바꾸고 메뉴 막대 표시, 배터리 상세 정보, 아이콘과 UI를 수정했습니다. 원본 소스 및 수정판의 사용·재배포 조건은 [MIT 라이선스](LICENSE)를 확인하세요.

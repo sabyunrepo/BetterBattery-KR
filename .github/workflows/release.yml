@@ -6,9 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (e.g. 1.0.0). Leave empty for a test build with no published release."
-        required: false
-        default: ""
+        description: "배포 버전 (예: 1.0.0)"
+        required: true
 
 permissions:
   contents: write
@@ -26,45 +25,49 @@ jobs:
         id: version
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          elif [[ -n "${INPUT_VERSION}" ]]; then
-            echo "version=${INPUT_VERSION#v}" >> "$GITHUB_OUTPUT"
-            echo "publish=true" >> "$GITHUB_OUTPUT"
+            version="${GITHUB_REF_NAME#v}"
           else
-            echo "version=0.0.0-ci${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-            echo "publish=false" >> "$GITHUB_OUTPUT"
+            version="${INPUT_VERSION#v}"
           fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must be MAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Install packaging tools
-        run: brew install librsvg create-dmg
-
-      - name: Generate app icon
-        run: bash scripts/make-icon.sh
-
-      - name: Build app bundle
+      - name: Build app bundle and icon
         run: VERSION="${{ steps.version.outputs.version }}" bash build-app.sh
+
+      - name: Verify app bundle
+        run: |
+          codesign --verify --deep --strict build/BetterBattery.app
+          test -s build/BetterBattery.app/Contents/Resources/LICENSE
+          test -s build/BetterBattery.app/Contents/Resources/AppIcon.icns
 
       - name: Package DMG
         run: |
           bash scripts/make-dmg.sh "${{ steps.version.outputs.version }}"
-          # Stable-named copy so /releases/latest/download/BetterBattery.dmg always works
+          # Stable URL for the README download link.
           cp "dist/BetterBattery-${{ steps.version.outputs.version }}.dmg" dist/BetterBattery.dmg
+          cd dist
+          shasum -a 256 BetterBattery-${{ steps.version.outputs.version }}.dmg > SHA256SUMS.txt
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: BetterBattery-dmg
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/SHA256SUMS.txt
 
       - name: Publish GitHub release
-        if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}"
-          gh release create "$TAG" dist/*.dmg \
+          gh release create "$TAG" dist/*.dmg dist/SHA256SUMS.txt \
             --target "${GITHUB_SHA}" \
-            --title "BetterBattery ${VERSION}" \
+            --title "배터리 전력 ${VERSION}" \
+            --notes "원본 [BetterBattery](https://github.com/michaelmax98/BetterBattery)의 MIT 라이선스 기반 한국어 수정판입니다. 현재 DMG는 Developer ID 서명·공증을 하지 않아 macOS에서 경고가 표시될 수 있습니다. SHA256SUMS.txt로 다운로드 파일을 검증할 수 있습니다." \
             --generate-notes

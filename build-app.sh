@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 
 VERSION="${VERSION:-1.0.0}"
 
+bash scripts/make-icon.sh
 swift build -c release
 
 APP="build/BetterBattery.app"
@@ -14,6 +15,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp ".build/release/BetterBattery" "$APP/Contents/MacOS/BetterBattery"
 cp "Support/Info.plist" "$APP/Contents/Info.plist"
+cp "LICENSE" "$APP/Contents/Resources/LICENSE"
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"

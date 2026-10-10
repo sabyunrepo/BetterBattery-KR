@@ -52,8 +52,9 @@ struct SectionHeader: View {
 
 struct MenuPanelView: View {
     @ObservedObject var monitor: PowerMonitor
-    @ObservedObject private var updater = UpdateChecker.shared
-    @AppStorage(DefaultsKey.menuBarDisplayMode) private var displayModeRaw = MenuBarDisplayMode.percent.rawValue
+    @AppStorage(DefaultsKey.showMenuBarWatts) private var showMenuBarWatts = true
+    @AppStorage(DefaultsKey.showMenuBarPercent) private var showMenuBarPercent = true
+    @AppStorage(DefaultsKey.showMenuBarTime) private var showMenuBarTime = true
     @AppStorage(DefaultsKey.warnThreshold) private var warnThreshold = 20
     @AppStorage(DefaultsKey.criticalThreshold) private var criticalThreshold = 10
     @AppStorage(DefaultsKey.lowBatteryGlow) private var lowBatteryGlow = true
@@ -68,6 +69,10 @@ struct MenuPanelView: View {
     // SMAppService needs a real bundle; hide the toggle under `swift run`.
     private var canManageLoginItem: Bool {
         Bundle.main.bundleIdentifier != nil
+    }
+
+    private var selectedMetricCount: Int {
+        [showMenuBarWatts, showMenuBarPercent, showMenuBarTime].filter { $0 }.count
     }
 
     var body: some View {
@@ -91,8 +96,7 @@ struct MenuPanelView: View {
 
             Divider()
 
-            // Zone 4 — update controls live at the very bottom of the panel
-            // (standing user preference; keep them here in layout changes).
+            // Zone 4 — local build footer.
             footer
         }
         .padding(14)
@@ -115,25 +119,24 @@ struct MenuPanelView: View {
     @ViewBuilder
     private var settingsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(icon: "gearshape.fill", title: "Settings", tint: [.gray], expanded: $showSettingsSection)
+            SectionHeader(icon: "gearshape.fill", title: "설정", tint: [.gray], expanded: $showSettingsSection)
 
             if showSettingsSection {
                 VStack(alignment: .leading, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Battery icon shows")
-                            .font(.caption)
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("메뉴 막대에 표시")
+                            .font(.caption.weight(.semibold))
+                        metricRow(.watts, isOn: $showMenuBarWatts)
+                        metricRow(.percent, isOn: $showMenuBarPercent)
+                        metricRow(.time, isOn: $showMenuBarTime)
+                        Text("선택한 항목을 위 순서대로 2초마다 표시합니다. 하나만 선택하면 고정됩니다.")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
-                        Picker("Battery icon shows", selection: $displayModeRaw) {
-                            ForEach(MenuBarDisplayMode.allCases) { mode in
-                                Text(mode.label).tag(mode.rawValue)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     if canManageLoginItem {
-                        Toggle("Launch at login", isOn: $launchAtLogin)
+                        Toggle("로그인 시 실행", isOn: $launchAtLogin)
                             .toggleStyle(.switch)
                             .controlSize(.mini)
                             .onChange(of: launchAtLogin) { enabled in
@@ -141,7 +144,7 @@ struct MenuPanelView: View {
                             }
                     }
 
-                    Button("Charge limit & Battery Settings…") {
+                    Button("충전 제한 및 배터리 설정…") {
                         openBatterySettings()
                     }
                     .controlSize(.mini)
@@ -156,36 +159,36 @@ struct MenuPanelView: View {
     @ViewBuilder
     private var lowBatterySection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(icon: "battery.25", title: "Low Battery", tint: [PowerAccent.orange], expanded: $showLowBatterySection)
+            SectionHeader(icon: "battery.25", title: "배터리 부족", tint: [PowerAccent.orange], expanded: $showLowBatterySection)
 
             if showLowBatterySection {
                 VStack(alignment: .leading, spacing: 6) {
-                    thresholdRow(label: "Warn", color: PowerAccent.orange, value: $warnThreshold, range: 2...20)
-                    thresholdRow(label: "Critical", color: PowerAccent.red, value: $criticalThreshold, range: 1...19)
-                    Toggle("Glow screen edges when low", isOn: $lowBatteryGlow)
+                    thresholdRow(label: "경고", color: PowerAccent.orange, value: $warnThreshold, range: 2...20)
+                    thresholdRow(label: "위험", color: PowerAccent.red, value: $criticalThreshold, range: 1...19)
+                    Toggle("배터리 부족 시 화면 가장자리 알림", isOn: $lowBatteryGlow)
                         .toggleStyle(.switch)
                         .controlSize(.mini)
                     if lowBatteryGlow {
                         HStack(spacing: 8) {
-                            Text("Glow intensity")
+                            Text("알림 밝기")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Slider(value: $glowWidth, in: 0.5...2.0)
                                 .controlSize(.mini)
                         }
                     }
-                    Toggle("Plug-in celebration", isOn: $plugInCelebration)
+                    Toggle("전원 연결 시 효과", isOn: $plugInCelebration)
                         .toggleStyle(.switch)
                         .controlSize(.mini)
                     HStack(spacing: 6) {
-                        Text("Test")
+                        Text("미리 보기")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Button("Warn") { GlowController.shared.test(.warning) }
-                        Button("Critical") { GlowController.shared.test(.critical) }
-                        Button("Plug-in") { GlowController.shared.test(.plugged) }
+                        Button("경고") { GlowController.shared.test(.warning) }
+                        Button("위험") { GlowController.shared.test(.critical) }
+                        Button("연결") { GlowController.shared.test(.plugged) }
                         Spacer()
-                        Text("esc ends")
+                        Text("Esc로 종료")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -209,7 +212,7 @@ struct MenuPanelView: View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(
                 icon: "atom",
-                title: "Stats for Nerds",
+                title: "상세 정보",
                 tint: [PowerAccent.blue, PowerAccent.green],
                 expanded: $showNerdStats
             )
@@ -220,77 +223,50 @@ struct MenuPanelView: View {
         }
     }
 
-    // MARK: - Footer (update controls + Quit, single row)
+    // MARK: - Footer
 
     @ViewBuilder
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let available = updater.availableVersion {
-                HStack(spacing: 8) {
-                    Label("v\(available) available", systemImage: "arrow.down.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                    Spacer()
-                    Button(updater.isInstalling ? "Installing…" : "Install Update") {
-                        updater.installUpdate()
-                    }
-                    .controlSize(.small)
-                    .disabled(updater.isInstalling)
-                    Button("Quit") {
-                        NSApplication.shared.terminate(nil)
-                    }
-                    .controlSize(.small)
-                    .keyboardShortcut("q")
-                }
-            } else {
-                HStack(spacing: 8) {
-                    if updater.currentVersion != nil {
-                        Button(updater.isChecking ? "Checking…" : "Check for Updates") {
-                            updater.check(userInitiated: true)
-                        }
-                        .controlSize(.small)
-                        .disabled(updater.isChecking)
-                    }
-                    if let current = updater.currentVersion {
-                        Text("v\(current)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button {
-                        if let url = URL(string: "https://buymeacoffee.com/michaelmaxwell") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    } label: {
-                        Image(systemName: "cup.and.saucer.fill")
-                    }
-                    .controlSize(.small)
-                    .help("Enjoying it? Buy me a coffee")
-                    Button("Quit") {
-                        NSApplication.shared.terminate(nil)
-                    }
-                    .controlSize(.small)
-                    .keyboardShortcut("q")
-                }
+        HStack(spacing: 8) {
+            Text("배터리 전력 · 한국어판")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("종료") {
+                NSApplication.shared.terminate(nil)
             }
-            if let status = updater.statusMessage {
-                Text(status)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            .controlSize(.small)
+            .keyboardShortcut("q")
         }
     }
 
     // MARK: - Helpers
+
+    private func metricRow(_ metric: MenuBarMetric, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: metric.symbol)
+                .frame(width: 16)
+                .foregroundStyle(.secondary)
+            Text(metric.label)
+                .font(.caption)
+            Spacer()
+            Text(metric.example)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Toggle(metric.label, isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(isOn.wrappedValue && selectedMetricCount == 1)
+        }
+    }
 
     private func thresholdRow(label: String, color: Color, value: Binding<Int>, range: ClosedRange<Int>) -> some View {
         HStack(spacing: 6) {
             Circle()
                 .fill(color)
                 .frame(width: 7, height: 7)
-            Text("\(label) at \(value.wrappedValue)%")
+            Text("\(label) · \(value.wrappedValue)%")
                 .font(.caption)
             Spacer()
             Stepper("", value: value, in: range, step: 1)

@@ -3,4 +3,6 @@ build/
 dist/
 .swiftpm/
 DerivedData/
+graphify-out/
+Support/AppIcon.icns
 .DS_Store

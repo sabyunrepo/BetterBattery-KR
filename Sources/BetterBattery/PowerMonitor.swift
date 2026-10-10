@@ -69,6 +69,9 @@ final class PowerMonitor: ObservableObject {
     private var ticksSincePersist = 0
     private var ticksSinceFans = 5
     private var samplesSinceSave = 0
+    private var systemHealthPercent: Int?
+    private var lastSystemHealthCheck: Date?
+    private var systemHealthCheckInProgress = false
 
     private init() {
         lifetimeDischargeWh = UserDefaults.standard.double(forKey: DefaultsKey.lifetimeDischargeWh)
@@ -135,6 +138,7 @@ final class PowerMonitor: ObservableObject {
         recordSample(from: snap)
         accumulateLifetime(from: snap)
         refreshFansIfDue()
+        refreshSystemHealthIfDue()
     }
 
     /// Integrate battery power over time into all-time Wh counters (1 Hz).
@@ -263,25 +267,44 @@ final class PowerMonitor: ObservableObject {
 
         snap.cycleCount = signedInt(props["CycleCount"])
 
-        // Health: raw full-charge capacity vs design capacity. On Apple silicon
-        // `MaxCapacity` is a percentage, so prefer the raw key; the > 200 guard
-        // skips percentage-valued fallbacks.
-        let rawMax = signedInt(props["AppleRawMaxCapacity"]) ?? signedInt(props["MaxCapacity"]) ?? 0
-        let design = signedInt(props["DesignCapacity"]) ?? 0
+        // Apple silicon keeps mAh values inside BatteryData (and temperature
+        // inside AppleSmartBatteryPack.BatteryData). The top-level MaxCapacity
+        // can be a percentage, so it must not be treated as mAh.
+        let batteryData = props["BatteryData"] as? [String: Any] ?? [:]
+        let packData = readBatteryPackData()
+        let rawMax = signedInt(props["AppleRawMaxCapacity"])
+            ?? signedInt(packData?["AppleRawMaxCapacity"])
+            ?? signedInt(batteryData["FullChargeCapacity"])
+            ?? signedInt(props["MaxCapacity"])
+            ?? 0
+        let design = signedInt(props["DesignCapacity"])
+            ?? signedInt(packData?["DesignCapacity"])
+            ?? signedInt(batteryData["DesignCapacity"])
+            ?? 0
         if design > 0, rawMax > 200 {
             let health = Int((Double(rawMax) / Double(design) * 100).rounded())
             if health > 0 && health <= 120 {
                 snap.healthPercent = min(health, 100)
             }
         }
+        // macOS's Maximum Capacity uses its own estimate, which need not equal
+        // raw full-charge mAh / design mAh. Prefer the system-reported value.
+        if let systemHealthPercent {
+            snap.healthPercent = systemHealthPercent
+        }
         if rawMax > 200 { snap.rawFullmAh = rawMax }
         if design > 200 { snap.designmAh = design }
-        let rawCurrent = signedInt(props["AppleRawCurrentCapacity"]) ?? 0
+        let rawCurrent = signedInt(props["AppleRawCurrentCapacity"])
+            ?? signedInt(packData?["AppleRawCurrentCapacity"])
+            ?? signedInt(batteryData["RemainingCapacity"])
+            ?? 0
         if rawCurrent > 0 { snap.rawCurrentmAh = rawCurrent }
 
         // Battery temperature: the registry publishes centi-degrees; some
         // machines report centi-Kelvin instead, so convert when it's huge.
-        if let rawTemp = signedInt(props["Temperature"]), rawTemp > 0 {
+        if let rawTemp = signedInt(props["Temperature"])
+            ?? signedInt(packData?["Temperature"])
+            ?? signedInt(batteryData["Temperature"]), rawTemp > 0 {
             var celsius = Double(rawTemp) / 100.0
             if celsius > 200 {
                 celsius -= 273.15
@@ -290,6 +313,81 @@ final class PowerMonitor: ObservableObject {
                 snap.temperatureC = celsius
             }
         }
+    }
+
+    private func readBatteryPackData() -> [String: Any]? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBatteryPack"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        var propsRef: Unmanaged<CFMutableDictionary>?
+        guard IORegistryEntryCreateCFProperties(service, &propsRef, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+              let props = propsRef?.takeRetainedValue() as? [String: Any] else { return nil }
+        return props["BatteryData"] as? [String: Any]
+    }
+
+    /// System Information reports the same maximum-capacity percentage shown
+    /// in macOS Battery settings. This changes slowly, so query off the main
+    /// thread and cache it instead of starting a process every 1 Hz tick.
+    private func refreshSystemHealthIfDue() {
+        guard !systemHealthCheckInProgress else { return }
+        let now = Date()
+        if let lastSystemHealthCheck, now.timeIntervalSince(lastSystemHealthCheck) < 6 * 3600 {
+            return
+        }
+        lastSystemHealthCheck = now
+        systemHealthCheckInProgress = true
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let health = Self.readSystemHealthPercent()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.systemHealthCheckInProgress = false
+                guard let health else { return }
+                self.systemHealthPercent = health
+                if self.snapshot.healthPercent != health {
+                    var updated = self.snapshot
+                    updated.healthPercent = health
+                    self.snapshot = updated
+                }
+                if let last = self.healthLog.last,
+                   Date().timeIntervalSince(last.date) < 24 * 3600,
+                   last.healthPercent != health {
+                    self.healthLog[self.healthLog.count - 1] = HealthPoint(
+                        date: last.date,
+                        healthPercent: health,
+                        cycleCount: last.cycleCount,
+                        rawFullmAh: last.rawFullmAh
+                    )
+                    self.saveHistory()
+                }
+            }
+        }
+    }
+
+    private static func readSystemHealthPercent() -> Int? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+        process.arguments = ["-json", "SPPowerDataType"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let entries = root["SPPowerDataType"] as? [[String: Any]],
+              let healthInfo = entries.compactMap({ $0["sppower_battery_health_info"] as? [String: Any] }).first,
+              let text = healthInfo["sppower_battery_health_maximum_capacity"] as? String,
+              let percent = Int(text.replacingOccurrences(of: "%", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)),
+              (1...100).contains(percent) else { return nil }
+        return percent
     }
 
     // MARK: - IOPowerSources: percentage and system time estimates

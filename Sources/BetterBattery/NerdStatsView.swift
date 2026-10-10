@@ -18,7 +18,9 @@ struct NerdStatsView: View {
                 spacing: 6
             ) {
                 temperatureTile(snap)
-                fansTile
+                if let fans = monitor.fans, !fans.isEmpty {
+                    fansTile(fans)
+                }
                 electricalTile(snap)
                 healthTile(snap)
                 sessionTile
@@ -32,12 +34,12 @@ struct NerdStatsView: View {
     private var sessionTile: some View {
         let hours = monitor.sessionDischargeSeconds / 3600
         let average = hours > 0.01 ? monitor.sessionDischargeWh / hours : 0
-        return tile(icon: "hourglass", tint: .purple, title: "Session") {
+        return tile(icon: "hourglass", tint: .purple, title: "이번 사용") {
             VStack(alignment: .leading, spacing: 1) {
                 Text(String(format: "%.1f Wh", monitor.sessionDischargeWh))
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                Text(average > 0 ? String(format: "avg %.1f W draw", average) : "no battery time yet")
+                Text(average > 0 ? String(format: "평균 사용 %.1f W", average) : "배터리 사용 기록 없음")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -45,12 +47,12 @@ struct NerdStatsView: View {
     }
 
     private func adapterTile(_ snap: BatterySnapshot) -> some View {
-        tile(icon: "powerplug", tint: PowerAccent.green, title: "Adapter") {
+        tile(icon: "powerplug", tint: PowerAccent.green, title: "어댑터") {
             VStack(alignment: .leading, spacing: 1) {
                 Text(snap.adapterWatts.map { "\($0) W" } ?? "—")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                Text(snap.adapterWatts != nil ? "connected" : "unplugged")
+                Text(snap.adapterWatts != nil ? "연결됨" : "연결 안 됨")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -60,7 +62,7 @@ struct NerdStatsView: View {
     // MARK: - Tiles
 
     private func temperatureTile(_ snap: BatterySnapshot) -> some View {
-        tile(icon: "thermometer", tint: PowerAccent.orange, title: "Temp") {
+        tile(icon: "thermometer", tint: PowerAccent.orange, title: "온도") {
             VStack(alignment: .leading, spacing: 4) {
                 Text(snap.temperatureC.map { String(format: "%.1f °C", $0) } ?? "—")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
@@ -91,29 +93,21 @@ struct NerdStatsView: View {
         return CGFloat(min(1, max(0.05, (temperature - 10) / 40)))   // 10–50 °C scale
     }
 
-    private var fansTile: some View {
-        tile(icon: "fanblades", tint: PowerAccent.blue, title: "Fans") {
+    private func fansTile(_ fans: [FanReading]) -> some View {
+        tile(icon: "fanblades", tint: PowerAccent.blue, title: "팬") {
             HStack(spacing: 6) {
-                if let fans = monitor.fans, !fans.isEmpty,
-                   let maxRpm = fans.map(\.rpm).max(), maxRpm > 50 {
+                if let maxRpm = fans.map(\.rpm).max(), maxRpm > 50 {
                     SpinningFanIcon(rpm: maxRpm)
                     Text(fans.map { String(format: "%.0f", $0.rpm) }.joined(separator: " · ") + " rpm")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
-                } else if let fans = monitor.fans, fans.isEmpty {
-                    Image(systemName: "fanblades")
-                        .font(.system(size: 15))
-                        .foregroundStyle(.tertiary)
-                    Text("None")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
                 } else {
                     Image(systemName: "fanblades")
                         .font(.system(size: 15))
                         .foregroundStyle(.secondary)
-                    Text(monitor.fans == nil ? "—" : "Off")
+                    Text("꺼짐")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -122,7 +116,7 @@ struct NerdStatsView: View {
     }
 
     private func electricalTile(_ snap: BatterySnapshot) -> some View {
-        tile(icon: "bolt.fill", tint: Color.yellow, title: "Electrical") {
+        tile(icon: "bolt.fill", tint: Color.yellow, title: "전압 · 전류") {
             VStack(alignment: .leading, spacing: 1) {
                 Text(String(format: "%.2f V", snap.voltage))
                 Text(String(format: "%.2f A", snap.amperage))
@@ -140,12 +134,12 @@ struct NerdStatsView: View {
             if health >= 80 { return PowerAccent.orange }
             return PowerAccent.red
         }()
-        return tile(icon: "heart.fill", tint: tint, title: "Health") {
+        return tile(icon: "heart.fill", tint: tint, title: "배터리 성능") {
             VStack(alignment: .leading, spacing: 1) {
                 Text(health.map { "\($0)%" } ?? "—")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                Text(snap.cycleCount.map { "\($0) cycles" } ?? "cycles —")
+                Text(snap.cycleCount.map { "사이클 \($0)회" } ?? "사이클 —")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -153,7 +147,7 @@ struct NerdStatsView: View {
     }
 
     private func capacityTile(_ snap: BatterySnapshot) -> some View {
-        tile(icon: "battery.100", tint: PowerAccent.blue, title: "Capacity") {
+        tile(icon: "battery.100", tint: PowerAccent.blue, title: "용량") {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
                     Text("\(snap.rawCurrentmAh.map(String.init) ?? "—") / \(snap.rawFullmAh.map(String.init) ?? "—") mAh")
@@ -161,7 +155,7 @@ struct NerdStatsView: View {
                         .monospacedDigit()
                     Spacer()
                     if let design = snap.designmAh {
-                        Text("design \(design)")
+                        Text("설계 \(design)")
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
                     }
@@ -186,7 +180,7 @@ struct NerdStatsView: View {
         let estimated = estimatedPreAppWh(snap)
         let total = measured + estimated
         let homeHours = total / Self.homeWhPerHour
-        return tile(icon: "bolt.batteryblock.fill", tint: PowerAccent.green, title: "Lifetime energy (est.)") {
+        return tile(icon: "bolt.batteryblock.fill", tint: PowerAccent.green, title: "누적 사용 전력량 (추정)") {
             VStack(alignment: .leading, spacing: 3) {
                 Text(energyText(total))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -196,13 +190,13 @@ struct NerdStatsView: View {
                     Image(systemName: "house.fill")
                         .font(.system(size: 8))
                         .foregroundStyle(.secondary)
-                    Text("enough to power the average U.S. home for \(homeTimeText(homeHours))")
+                    Text("미국 평균 가정의 \(homeTimeText(homeHours)) 사용량")
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(String(format: "%.0f Wh estimated from cycle history · %.1f Wh measured live", estimated, measured))
+                Text(String(format: "사이클 기준 추정 %.0f Wh · 앱 측정 %.1f Wh", estimated, measured))
                     .font(.system(size: 8.5))
                     .foregroundStyle(.tertiary)
             }
@@ -248,9 +242,9 @@ struct NerdStatsView: View {
     }
 
     private func homeTimeText(_ hours: Double) -> String {
-        if hours >= 48 { return String(format: "~%.1f days", hours / 24) }
-        if hours >= 1 { return String(format: "~%.1f hours", hours) }
-        return String(format: "~%.0f minutes", hours * 60)
+        if hours >= 48 { return String(format: "약 %.1f일", hours / 24) }
+        if hours >= 1 { return String(format: "약 %.1f시간", hours) }
+        return String(format: "약 %.0f분", hours * 60)
     }
 }
 

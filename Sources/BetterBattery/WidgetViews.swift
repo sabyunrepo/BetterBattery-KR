@@ -10,9 +10,9 @@ func formatMinutes(_ minutes: Int) -> String {
     let hours = minutes / 60
     let mins = minutes % 60
     if hours > 0 {
-        return "\(hours)h \(mins)m"
+        return "\(hours)시간 \(mins)분"
     }
-    return "\(mins)m"
+    return "\(mins)분"
 }
 
 // MARK: - Widget content, shared by the floating widget and the menu bar panel
@@ -25,7 +25,7 @@ struct WidgetContent: View {
     var body: some View {
         Group {
             if monitor.snapshot.state == .noBattery {
-                Label("No battery detected", systemImage: "exclamationmark.triangle")
+                Label("배터리를 찾을 수 없습니다", systemImage: "exclamationmark.triangle")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 10)
@@ -63,7 +63,7 @@ struct WidgetContent: View {
                             Label(time, systemImage: timeSymbol(for: snap))
                         }
                         if let adapter = snap.adapterWatts {
-                            Label("\(adapter)W adapter", systemImage: "powerplug")
+                            Label("어댑터 \(adapter)W", systemImage: "powerplug")
                         }
                     }
                     .font(.system(size: 11))
@@ -82,10 +82,10 @@ struct WidgetContent: View {
 
     private func caption(for snap: BatterySnapshot) -> String {
         switch snap.state {
-        case .charging: return "Charging · into battery"
-        case .discharging: return "On battery"
-        case .charged: return "Fully charged"
-        case .pluggedIdle: return "Plugged in · charging on hold"
+        case .charging: return "충전 중 · 배터리에 유입"
+        case .discharging: return "배터리 사용 중"
+        case .charged: return "충전 완료"
+        case .pluggedIdle: return "전원 연결됨 · 충전 대기 중"
         case .noBattery: return ""
         }
     }
@@ -105,14 +105,14 @@ struct WidgetContent: View {
         switch snap.state {
         case .charging:
             if let minutes = snap.timeToFullMinutes {
-                return "\(formatMinutes(minutes)) to full"
+                return "완충까지 \(formatMinutes(minutes))"
             }
-            return "estimating…"
+            return "시간 계산 중…"
         case .discharging:
             if let minutes = snap.timeToEmptyMinutes {
-                return "\(formatMinutes(minutes)) left"
+                return "남은 시간 \(formatMinutes(minutes))"
             }
-            return "estimating…"
+            return "시간 계산 중…"
         case .charged, .pluggedIdle, .noBattery:
             return nil
         }

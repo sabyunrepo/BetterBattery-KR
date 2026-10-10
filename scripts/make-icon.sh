@@ -1,20 +1,20 @@
 #!/bin/bash
-# Renders docs/app-icon.svg into Support/AppIcon.icns (requires librsvg + macOS iconutil).
+# Renders the SVG icon with tools already included in macOS and CI runners.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if ! command -v rsvg-convert >/dev/null 2>&1; then
-  echo "rsvg-convert not found (brew install librsvg) — skipping icon generation"
-  exit 0
-fi
-
 ICONSET="build/AppIcon.iconset"
-rm -rf "$ICONSET"
 mkdir -p "$ICONSET"
+sips -s format png docs/app-icon.svg --out "$ICONSET/icon_512x512@2x.png" >/dev/null
 
 for size in 16 32 128 256 512; do
-  rsvg-convert -w "$size" -h "$size" docs/app-icon.svg -o "$ICONSET/icon_${size}x${size}.png"
-  rsvg-convert -w "$((size * 2))" -h "$((size * 2))" docs/app-icon.svg -o "$ICONSET/icon_${size}x${size}@2x.png"
+  sips -z "$size" "$size" "$ICONSET/icon_512x512@2x.png" \
+    --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+  if [ "$size" -lt 512 ]; then
+    doubled=$((size * 2))
+    sips -z "$doubled" "$doubled" "$ICONSET/icon_512x512@2x.png" \
+      --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+  fi
 done
 
 iconutil -c icns "$ICONSET" -o Support/AppIcon.icns

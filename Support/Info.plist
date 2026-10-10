@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>ko</string>
 	<key>CFBundleExecutable</key>
 	<string>BetterBattery</string>
 	<key>CFBundleIconFile</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleName</key>
 	<string>BetterBattery</string>
 	<key>CFBundleDisplayName</key>
-	<string>BetterBattery</string>
+	<string>배터리 전력</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

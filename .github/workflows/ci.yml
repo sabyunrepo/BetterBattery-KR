@@ -15,8 +15,14 @@ jobs:
       - name: Swift version
         run: swift --version
 
-      - name: Build
-        run: swift build -c release
+      - name: Check patch formatting
+        run: git diff --check
 
-      - name: Bundle app
-        run: bash build-app.sh
+      - name: Build app and icon
+        run: VERSION=1.0.0 bash build-app.sh
+
+      - name: Verify app bundle
+        run: |
+          codesign --verify --deep --strict build/BetterBattery.app
+          test -s build/BetterBattery.app/Contents/Resources/LICENSE
+          test -s build/BetterBattery.app/Contents/Resources/AppIcon.icns

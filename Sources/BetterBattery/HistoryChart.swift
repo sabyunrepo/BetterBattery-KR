@@ -10,9 +10,9 @@ enum HistoryMode: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .charge: return "Charge"
-        case .watts: return "Watts"
-        case .health: return "Health"
+        case .charge: return "충전량"
+        case .watts: return "전력"
+        case .health: return "성능"
         }
     }
 }
@@ -23,6 +23,14 @@ enum HistoryWindow: String, CaseIterable, Identifiable {
     case week = "7d"
 
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .fourHours: return "4시간"
+        case .day: return "24시간"
+        case .week: return "7일"
+        }
+    }
 
     var seconds: TimeInterval {
         switch self {
@@ -53,11 +61,11 @@ struct HistoryChart: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text("History")
+                Text("기록")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Picker("History shows", selection: $modeRaw) {
+                Picker("기록 표시", selection: $modeRaw) {
                     ForEach(HistoryMode.allCases) { mode in
                         Text(mode.label).tag(mode.rawValue)
                     }
@@ -70,9 +78,9 @@ struct HistoryChart: View {
 
             if mode != .health {
                 HStack(spacing: 6) {
-                    Picker("Window", selection: $windowRaw) {
+                    Picker("기간", selection: $windowRaw) {
                         ForEach(HistoryWindow.allCases) { window in
-                            Text(window.rawValue).tag(window.rawValue)
+                            Text(window.label).tag(window.rawValue)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -97,7 +105,7 @@ struct HistoryChart: View {
             HStack(spacing: 3) {
                 Image(systemName: "thermometer")
                     .font(.system(size: 8, weight: .bold))
-                Text("temp")
+                Text("온도")
                     .font(.system(size: 9, weight: .semibold))
             }
             .foregroundStyle(showTempOverlay ? Color.white : Color.secondary)
@@ -117,7 +125,7 @@ struct HistoryChart: View {
         switch mode {
         case .charge:
             if monitor.history.count < 2 {
-                collectingNote("Collecting data — the chart fills in as BetterBattery runs.")
+                collectingNote("데이터를 모으는 중입니다. 앱을 사용하면 그래프가 채워집니다.")
             } else {
                 chargeChart
                     .frame(height: 84)
@@ -126,7 +134,7 @@ struct HistoryChart: View {
             }
         case .watts:
             if monitor.history.count < 2 {
-                collectingNote("Collecting data — the chart fills in as BetterBattery runs.")
+                collectingNote("데이터를 모으는 중입니다. 앱을 사용하면 그래프가 채워집니다.")
             } else {
                 wattsChart
                     .frame(height: 84)
@@ -135,7 +143,7 @@ struct HistoryChart: View {
             }
         case .health:
             if monitor.healthLog.count < 2 {
-                collectingNote("Health is snapshotted daily — the trend appears after a couple of days.")
+                collectingNote("배터리 성능은 하루에 한 번 기록됩니다. 며칠 뒤 추세가 표시됩니다.")
             } else {
                 healthChart
                     .frame(height: 84)
@@ -159,8 +167,8 @@ struct HistoryChart: View {
         return Chart {
             ForEach(points, id: \.time) { point in
                 AreaMark(
-                    x: .value("Time", point.time),
-                    y: .value("Charge", point.percent)
+                    x: .value("시간", point.time),
+                    y: .value("충전량", point.percent)
                 )
                 .interpolationMethod(.monotone)
                 .foregroundStyle(
@@ -171,8 +179,8 @@ struct HistoryChart: View {
                     )
                 )
                 LineMark(
-                    x: .value("Time", point.time),
-                    y: .value("Charge", point.percent)
+                    x: .value("시간", point.time),
+                    y: .value("충전량", point.percent)
                 )
                 .interpolationMethod(.monotone)
                 .foregroundStyle(PowerAccent.blue)
@@ -181,9 +189,9 @@ struct HistoryChart: View {
             if showTempOverlay {
                 ForEach(temperaturePoints(points), id: \.time) { point in
                     LineMark(
-                        x: .value("Time", point.time),
-                        y: .value("Temp", point.value),
-                        series: .value("Series", "temp")
+                        x: .value("시간", point.time),
+                        y: .value("온도", point.value),
+                        series: .value("계열", "온도")
                     )
                     .interpolationMethod(.monotone)
                     .foregroundStyle(PowerAccent.orange)
@@ -203,20 +211,20 @@ struct HistoryChart: View {
         return Chart {
             ForEach(points, id: \.time) { point in
                 BarMark(
-                    x: .value("Time", point.time),
-                    y: .value("Watts", point.watts)
+                    x: .value("시간", point.time),
+                    y: .value("전력", point.watts)
                 )
                 .foregroundStyle(point.watts >= 0 ? PowerAccent.green : PowerAccent.blue)
             }
-            RuleMark(y: .value("Zero", 0))
+            RuleMark(y: .value("영점", 0))
                 .foregroundStyle(Color.primary.opacity(0.25))
                 .lineStyle(StrokeStyle(lineWidth: 1))
             if showTempOverlay {
                 ForEach(temperaturePoints(points), id: \.time) { point in
                     LineMark(
-                        x: .value("Time", point.time),
-                        y: .value("Temp", point.value),
-                        series: .value("Series", "temp")
+                        x: .value("시간", point.time),
+                        y: .value("온도", point.value),
+                        series: .value("계열", "온도")
                     )
                     .interpolationMethod(.monotone)
                     .foregroundStyle(PowerAccent.orange)
@@ -239,14 +247,14 @@ struct HistoryChart: View {
         return Chart {
             ForEach(points, id: \.time) { point in
                 LineMark(
-                    x: .value("Date", point.time),
-                    y: .value("Health", point.health)
+                    x: .value("날짜", point.time),
+                    y: .value("성능", point.health)
                 )
                 .foregroundStyle(PowerAccent.green)
                 .lineStyle(StrokeStyle(lineWidth: 1.5))
                 PointMark(
-                    x: .value("Date", point.time),
-                    y: .value("Health", point.health)
+                    x: .value("날짜", point.time),
+                    y: .value("성능", point.health)
                 )
                 .foregroundStyle(PowerAccent.green)
                 .symbolSize(14)
